@@ -1,0 +1,254 @@
+---
+title: "GIS-CW"
+author: "Ziyi Chen"
+date: "2021/1/6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Raw R code and data visualization for CASA0005
+
+The main purpose for this assignment's report is to find out the spatial distribution of COVID-19 new cases in London borough and to quantify the effect of 'Lockdown' policy on the suppress of the increase of new cases based on statistical analysis and spatial autocorrelation.
+
+### Data visualization on map
+```{r, warning=FALSE, message=FALSE, out.width = "800pt", cache=FALSE}
+#import library 
+library(sf)
+library(tmap)
+library(tmaptools)
+library(tidyverse)
+library(here)
+library(janitor)
+library(RColorBrewer)
+library(sp)
+library(spdep)
+```
+
+After completing loading libraries, loading all datasets needed for the analysis:
+```{r}
+#read all dataset for the analysis
+#London borough shapefile
+Londonborough <-
+  st_read(
+    here::here(
+      'data',
+      'statistical-gis-boundaries-london',
+      'ESRI',
+      'London_Borough_Excluding_MHW.shp'
+    )
+  ) %>%
+  st_transform(., 27700)
+```
+
+Read csv file-->cumulative new cases in each time period, raw csv files are in Github repo
+```{r}
+#cumulative new cases in 3.23-4.22 period
+covid_323_422 <-
+  read_csv(
+    '/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/new_cases-323-422.csv',
+    na = c("NA", "n/a")
+  ) %>%
+  clean_names()
+
+#cumulative new cases in 5.23-6.22 period
+covid_523_622 <-
+  read_csv(
+    '/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/new_cases-523-622.csv',
+    na = c("NA", "n/a")
+  ) %>%
+  clean_names()
+
+names(covid_323_422)
+names(covid_523_622)
+```
+
+Connect the CSV file data and shapefile
+
+```{r}
+#join data with shapefile and new cases data in 3.23-4.22 period
+Londonborough_merged <-
+  Londonborough %>% left_join(covid_323_422, by = c('GSS_CODE' = 'area_code')) %>%
+  distinct(GSS_CODE, NAME, new_cases,new_cases_per_10k_population) #choose which column to be used in the following analysis
+
+#join data with shapefile and new cases data in 5.23-6.22 period
+Londonborough_merged_523 <-
+  Londonborough %>% left_join(covid_523_622, by = c('GSS_CODE' = 'area_code')) %>%
+  distinct(GSS_CODE, NAME, new_cases, new_cases_per_10k_523_622) #choose which column to be used in the following analysis
+```
+```{r}
+#making maps
+tmap_mode('view')
+breaks_323 = c(10, 15, 20, 25, 30, 35) 
+tm1 <- tm_shape(Londonborough_merged) +
+  tm_polygons(
+    'new_cases_per_10k_population',
+    breaks = breaks_323,
+    alpha = 0.5,
+    palette = 'PuBu',
+    colorNA = 'white',
+    title = 'New cases rate'
+  ) + tm_layout(
+    legend.position = c('left', 'bottom'),
+    legend.outside = FALSE,
+    legend.title.size = 1.2,
+    legend.text.size = 0.75,
+    frame = FALSE
+  ) + tm_credits('(A) New cases rate in 3.23-4.22', position = c('left', 'top'), size = 1.2) + tm_compass(type = "arrow", position = c("right", "bottom")) +tm_scale_bar(position =c('right', 'bottom'), text.size = 0.6)
+#view map 1
+tm1
+#saving map
+tmap_save(tm1,'/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/new_cases_rate(323-422).png')
+
+#making map 2
+breaks_523=c(0,0.5,1,1.5,2,2.5,3)
+tm2 <- tm_shape(Londonborough_merged_523) +
+  tm_polygons(
+    'new_cases_per_10k_523_622',
+    breaks = breaks_523,
+    alpha = 0.5,
+    palette = 'PuBu',
+    colorNA = 'white',
+    title = 'New cases rate'
+  ) + tm_layout(
+    legend.position = c('left', 'bottom'),
+    legend.outside = FALSE,
+    legend.title.size = 1.2,
+    legend.text.size = 0.75,
+    frame = FALSE
+  ) +
+  tm_compass(type = "arrow", position = c("right", "bottom")) + tm_credits('(B) New cases rate in 5.23-6.22',
+                                                                           position = c('left', 'top'),
+                                                                           size =
+                                                                             1.2) +
+  tm_scale_bar(position = c('right', 'bottom'), text.size = 0.6)
+tm2
+tmap_save(tm2,'/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/new_cases_rate(523-622).png')
+
+#combine two map
+t=tmap_arrange(tm1,tm2,nrow=1)
+tmap_save(t,'/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/New_cases_rate.png')
+t
+```
+
+###Global Moran 
+```{r}
+#data cleaning for 3.23-4.22 data
+london_exclude_city <-
+  na.omit(Londonborough_merged) #exclude rows contain null data
+#data cleaning for 5.23-6.22 data
+london_exclude_city_523 <- na.omit(Londonborough_merged_523)
+
+#creating polygon for 323 dataset and 523 dataset
+neibour_323 <- poly2nb(london_exclude_city, queen = TRUE)
+neibour_323[[1]]
+
+neibour_523 <- poly2nb(london_exclude_city_523,queen=TRUE)
+neibour_523[[1]]
+
+#assign weight matrix for each neighbouring polygon using row standardisation
+lw_323 <- nb2listw(neibour_323, style = "W", zero.policy = TRUE) #each neighbour is assigned a quarter of total weight
+lw_523 <- nb2listw(neibour_523,style='W',zero.policy = TRUE)
+
+#computing global Moran's I 
+moran.test(london_exclude_city$new_cases_per_10k_population, lw_323)
+moran.test(london_exclude_city_523$new_cases_per_10k_523_622,lw_523)
+```
+
+###Local Moran visualization
+```{r}
+#local moran value for data 3.23-4.22
+local_moran_323 <- localmoran(london_exclude_city$new_cases_per_10k_population, lw_323)
+summary(local_moran_323)
+
+#local moran value for data 5.23-6.22
+local_moran_523 <- localmoran(london_exclude_city_523$new_cases_per_10k_523_622,lw_523)
+summary(local_moran_523)
+
+#plot local moran map
+#There are 5 columns of data.
+#copy some of the columns (the I score (column 1) and the z-score standard deviation (column 4))
+#the z-score (standardised value relating to whether high values or low values are clustering together)
+#change local_moran type
+local_moran_tibble_323 <- as_tibble(local_moran_323) #change to dataframe
+local_moran_tibble_523 <- as_tibble(local_moran_523)
+
+london_exclude_city <-
+  london_exclude_city %>% mutate(local_moran_I = as.numeric(local_moran_tibble_323$Ii)) %>% mutate(local_moran_z =as.numeric(local_moran_tibble_323$Z.Ii))
+
+london_exclude_city_523 <-
+  london_exclude_city_523 %>% mutate(local_moran_I = as.numeric(local_moran_tibble_523$Ii)) %>% mutate(local_moran_z =
+                                                                                                         as.numeric(local_moran_tibble_523$Z.Ii))
+
+#setting color
+MoranColours <- rev(brewer.pal(8, "RdBu"))
+
+#plot a map (in Rmd documend, tmap mode changes to viewing, but raw code is plotting mode)
+tmap_mode('view')
+
+#plotting local moran map for 3.23-4.22
+tm_323 <- tm_shape(london_exclude_city) +
+  tm_polygons(
+    'local_moran_I',
+    alpha = 0.5,
+    palette = MoranColours,
+    title = 'Local Moran I',midpoint=NA
+  ) + tm_layout(
+    legend.position = c('left', 'bottom'),
+    legend.outside = FALSE,
+    legend.title.size = 1.2,
+    legend.text.size = 0.75,
+    frame = FALSE
+  ) + tm_compass(type = "arrow", position = c("right", "bottom")) +tm_scale_bar(position =
+                                                                                  c('right', 'bottom'), text.size = 0.6)+tm_credits('(A) Local Moran in 3.23-4.22',position = c('left','top'),size = 1.2)
+
+tm_323
+
+tmap_save(tm_323,'/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/local_moran_323.png')
+
+#plotting local moran map for 5.23-6.22 dataset
+tm_523 <- tm_shape(london_exclude_city_523) +
+  tm_polygons(
+    'local_moran_I',
+    alpha = 0.5,
+    palette = MoranColours,
+    title = 'Local Moran I',midpoint=NA
+  ) + tm_layout(
+    legend.position = c('left', 'bottom'),
+    legend.outside = FALSE,
+    legend.title.size = 1.2,
+    legend.text.size = 0.75,
+    frame = FALSE
+  ) +tm_compass(type = "arrow", position = c("right", "bottom")) +tm_scale_bar(position =
+                                                                                 c('right', 'bottom'), text.size = 0.6)+tm_credits('(B) Local Moran in 5.23-6.22',position = c('left','top'),size = 1.2)
+
+tm_523
+tmap_save(tm_523,'/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/local_moran_523.png')
+
+#combine two map
+t_c=tmap_arrange(tm_323,tm_523,nrow=1)
+t_c
+tmap_save(t_c,'/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/local_moran_combined.png')
+```
+
+###Geary's test result
+```{r}
+#geary's test
+#geary's test for 3.23-4.22 data
+geary.test(london_exclude_city$new_cases_per_10k_population, lw_323)
+
+#geary's test for 5.23-6.22 data
+geary.test(london_exclude_city_523$new_cases_per_10k_523_622,lw_523)
+```
+
+###Getis Ord General G result
+```{r}
+#Getis Ord General G for 3.23-4.22
+globalG.test(london_exclude_city$new_cases_per_10k_population,lw_323)
+
+#Getis Ord General G for 5.23-6.22
+globalG.test(london_exclude_city_523$new_cases_per_10k_523_622,lw_523)
+```
+
