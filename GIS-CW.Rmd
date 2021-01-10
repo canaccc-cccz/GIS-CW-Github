@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 The main purpose for this assignment's report is to find out the spatial distribution of COVID-19 new cases in London borough and to quantify the effect of 'Lockdown' policy on the suppress of the increase of new cases based on statistical analysis and spatial autocorrelation.
 
 ### Data visualization on map
-```{r, warning=FALSE, message=FALSE, out.width = "800pt", cache=FALSE}
+```{r, warning=FALSE, message=FALSE, out.width = "800pt", cache=FALSE,results='hide'}
 #import library 
 library(sf)
 library(tmap)
@@ -136,16 +136,16 @@ t
 ###Global Moran 
 ```{r}
 #data cleaning for 3.23-4.22 data
-london_exclude_city <-
+london_contain_city <-
   na.omit(Londonborough_merged) #exclude rows contain null data
 #data cleaning for 5.23-6.22 data
-london_exclude_city_523 <- na.omit(Londonborough_merged_523)
+london_contain_city_523 <- na.omit(Londonborough_merged_523)
 
 #creating polygon for 323 dataset and 523 dataset
-neibour_323 <- poly2nb(london_exclude_city, queen = TRUE)
+neibour_323 <- poly2nb(london_contain_city, queen = TRUE)
 neibour_323[[1]]
 
-neibour_523 <- poly2nb(london_exclude_city_523,queen=TRUE)
+neibour_523 <- poly2nb(london_contain_city_523,queen=TRUE)
 neibour_523[[1]]
 
 #assign weight matrix for each neighbouring polygon using row standardisation
@@ -153,18 +153,18 @@ lw_323 <- nb2listw(neibour_323, style = "W", zero.policy = TRUE) #each neighbour
 lw_523 <- nb2listw(neibour_523,style='W',zero.policy = TRUE)
 
 #computing global Moran's I 
-moran.test(london_exclude_city$new_cases_per_10k_population, lw_323)
-moran.test(london_exclude_city_523$new_cases_per_10k_523_622,lw_523)
+moran.test(london_contain_city$new_cases_per_10k_population, lw_323)
+moran.test(london_contain_city_523$new_cases_per_10k_523_622,lw_523)
 ```
 
 ###Local Moran visualization
 ```{r}
 #local moran value for data 3.23-4.22
-local_moran_323 <- localmoran(london_exclude_city$new_cases_per_10k_population, lw_323)
+local_moran_323 <- localmoran(london_contain_city$new_cases_per_10k_population, lw_323)
 summary(local_moran_323)
 
 #local moran value for data 5.23-6.22
-local_moran_523 <- localmoran(london_exclude_city_523$new_cases_per_10k_523_622,lw_523)
+local_moran_523 <- localmoran(london_contain_city_523$new_cases_per_10k_523_622,lw_523)
 summary(local_moran_523)
 
 #plot local moran map
@@ -175,11 +175,11 @@ summary(local_moran_523)
 local_moran_tibble_323 <- as_tibble(local_moran_323) #change to dataframe
 local_moran_tibble_523 <- as_tibble(local_moran_523)
 
-london_exclude_city <-
-  london_exclude_city %>% mutate(local_moran_I = as.numeric(local_moran_tibble_323$Ii)) %>% mutate(local_moran_z =as.numeric(local_moran_tibble_323$Z.Ii))
+london_contain_city <-
+  london_contain_city %>% mutate(local_moran_I = as.numeric(local_moran_tibble_323$Ii)) %>% mutate(local_moran_z =as.numeric(local_moran_tibble_323$Z.Ii))
 
-london_exclude_city_523 <-
-  london_exclude_city_523 %>% mutate(local_moran_I = as.numeric(local_moran_tibble_523$Ii)) %>% mutate(local_moran_z =
+london_contain_city_523 <-
+  london_contain_city_523 %>% mutate(local_moran_I = as.numeric(local_moran_tibble_523$Ii)) %>% mutate(local_moran_z =
                                                                                                          as.numeric(local_moran_tibble_523$Z.Ii))
 
 #setting color
@@ -189,7 +189,7 @@ MoranColours <- rev(brewer.pal(8, "RdBu"))
 tmap_mode('view')
 
 #plotting local moran map for 3.23-4.22
-tm_323 <- tm_shape(london_exclude_city) +
+tm_323 <- tm_shape(london_contain_city) +
   tm_polygons(
     'local_moran_I',
     alpha = 0.5,
@@ -209,7 +209,7 @@ tm_323
 tmap_save(tm_323,'/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/local_moran_323.png')
 
 #plotting local moran map for 5.23-6.22 dataset
-tm_523 <- tm_shape(london_exclude_city_523) +
+tm_523 <- tm_shape(london_contain_city_523) +
   tm_polygons(
     'local_moran_I',
     alpha = 0.5,
@@ -234,10 +234,10 @@ tmap_save(t_c,'/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/local
 ```
 ###LISA clusters ploting
 ```{r}
-quadrant_323 <- vector(mode='numeric',length=nrow(london_exclude_city))
+quadrant_323 <- vector(mode='numeric',length=nrow(london_contain_city))
 
 #centers the variable of interest around its mean
-m.new_cases_rate <- london_exclude_city$new_cases_per_10k_population-mean(london_exclude_city$new_cases_per_10k_population)
+m.new_cases_rate <- london_contain_city$new_cases_per_10k_population-mean(london_contain_city$new_cases_per_10k_population)
 
 #centers the local moran's around the mean
 m.local_323 <- local_moran_323[,1]-mean(local_moran_323[,1])
@@ -255,15 +255,15 @@ quadrant_323[local_moran_323[,5]>signif] <- 0
 #plotting in r
 brks <- c(0,1,2,3,4)
 colors <- c('white','blue',rgb(0,0,1,alpha=0.4),rgb(1,0,0,alpha=0.4),'red')
-plot(london_exclude_city,border='lightgray',col=colors[findInterval(quadrant_323,brks,all.inside = FALSE)],max.plot=1,main='LISA cluster')
+plot(london_contain_city,border='lightgray',col=colors[findInterval(quadrant_323,brks,all.inside = FALSE)],max.plot=1,main='LISA cluster')
 
 legend('bottomright',legend=c('insignificant',
                              'low-low','low-high',
                              'high-low','high-high'),fill=colors,bty='n')
 
 #for 5.23-6.22 data
-quadrant_523 <- vector(mode='numeric',length=nrow(london_exclude_city_523))
-m.new_cases_rate_523 <- london_exclude_city_523$new_cases_per_10k_523_622-mean(london_exclude_city_523$new_cases_per_10k_523_622)
+quadrant_523 <- vector(mode='numeric',length=nrow(london_contain_city_523))
+m.new_cases_rate_523 <- london_contain_city_523$new_cases_per_10k_523_622-mean(london_contain_city_523$new_cases_per_10k_523_622)
 
 m.local_523 <- local_moran_523[,1]-mean(local_moran_523[,1])
 quadrant_523[m.new_cases_rate_523>0 & m.local_523>0] <- 4
@@ -273,7 +273,7 @@ quadrant_523[m.new_cases_rate_523>0 & m.local_523<0] <- 3
 quadrant_523[local_moran_523[,5]>signif] <- 0
 
 
-plot(london_exclude_city_523,border='lightgray',col=colors[findInterval(quadrant_523,brks,all.inside = FALSE)],max.plot=1,main='LISA cluster')
+plot(london_contain_city_523,border='lightgray',col=colors[findInterval(quadrant_523,brks,all.inside = FALSE)],max.plot=1,main='LISA cluster')
 legend('bottomright',legend=c('insignificant',
                               'low-low','low-high',
                               'high-low','high-high'),fill=colors,bty='n')
@@ -284,19 +284,19 @@ legend('bottomright',legend=c('insignificant',
 ```{r}
 #geary's test
 #geary's test for 3.23-4.22 data
-geary.test(london_exclude_city$new_cases_per_10k_population, lw_323)
+geary.test(london_contain_city$new_cases_per_10k_population, lw_323)
 
 #geary's test for 5.23-6.22 data
-geary.test(london_exclude_city_523$new_cases_per_10k_523_622,lw_523)
+geary.test(london_contain_city_523$new_cases_per_10k_523_622,lw_523)
 ```
 
 ###Getis Ord General G result
 ```{r}
 #Getis Ord General G for 3.23-4.22
-globalG.test(london_exclude_city$new_cases_per_10k_population,lw_323)
+globalG.test(london_contain_city$new_cases_per_10k_population,lw_323)
 
 #Getis Ord General G for 5.23-6.22
-globalG.test(london_exclude_city_523$new_cases_per_10k_523_622,lw_523)
+globalG.test(london_contain_city_523$new_cases_per_10k_523_622,lw_523)
 ```
 
 ###Descriptive statistics summary
