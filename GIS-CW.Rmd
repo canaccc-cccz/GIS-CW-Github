@@ -30,7 +30,7 @@ library(spdep)
 After completing loading libraries, loading all datasets needed for the analysis:
 ```{r}
 #read all dataset for the analysis
-#London borough shapefile
+#read London borough shapefile
 Londonborough <-
   st_read(
     here::here(
@@ -40,12 +40,12 @@ Londonborough <-
       'London_Borough_Excluding_MHW.shp'
     )
   ) %>%
-  st_transform(., 27700)
+  st_transform(., 27700) #transform to 27700
 ```
 
 Read csv file-->cumulative new cases in each time period, raw csv files are in Github repo
 ```{r}
-#cumulative new cases in 3.23-4.22 period
+#cumulative new cases in 3.23-4.22 period for London boroughs
 covid_323_422 <-
   read_csv(
     '/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/new_cases-323-422.csv',
@@ -53,7 +53,7 @@ covid_323_422 <-
   ) %>%
   clean_names()
 
-#cumulative new cases in 5.23-6.22 period
+#cumulative new cases in 5.23-6.22 period for London boroughs
 covid_523_622 <-
   read_csv(
     '/Users/ziyichen/Desktop/SDSV/GIS/Data_for_CW/Code&data/data/new_cases-523-622.csv',
@@ -61,7 +61,7 @@ covid_523_622 <-
   ) %>%
   clean_names()
 
-names(covid_323_422)
+names(covid_323_422) #present the names of data file
 names(covid_523_622)
 ```
 
@@ -306,9 +306,9 @@ library(ggplot2)
 #histrogram
 #only use rate of new cases to plot histrogram
 covid_323_hist <- hist(covid_323_422$new_cases_per_10k_population,col='Dark blue',density=10,xlab='Rate of new cases',main='Rate of new cases during 3.23-4.22',angle=45,ylim=c(0,15))
-mean_323 <- mean(covid_323_422$new_cases_per_10k_population)
-var_323 <- var(covid_323_422$new_cases_per_10k_population)
-std_323 <- sd(covid_323_422$new_cases_per_10k_population)
+mean_323 <- mean(covid_323_422$new_cases_per_10k_population) #mean value
+var_323 <- var(covid_323_422$new_cases_per_10k_population) #variance value
+std_323 <- sd(covid_323_422$new_cases_per_10k_population) #standard deviation
 mean_323
 var_323
 std_323
