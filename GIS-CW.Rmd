@@ -43,7 +43,8 @@ Londonborough <-
   st_transform(., 27700) #transform to 27700
 ```
 
-Read csv file-->cumulative new cases in each time period, raw csv files are in Github repo
+Read csv file-->cumulative new cases in each time period, raw csv files are in Google Drive and the url address is on the cover page, please check it.
+
 ```{r}
 #cumulative new cases in 3.23-4.22 period for London boroughs
 covid_323_422 <-
